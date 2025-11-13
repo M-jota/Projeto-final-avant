@@ -14,8 +14,7 @@ class DetectorMangueira(Node):
         self.bridge = CvBridge()
 
         # SUBSCRIBER da camera 
-        # OBS.: tem que conferir esse topico da camera!
-        self.image_sub = self.create_subscription(Image, '/mavros/camera/image_captured', self.image_callback, 10)
+        self.image_sub = self.create_subscription(Image, '/camera/image', self.image_callback, 10)
 
         # PUBLISHER para posicao da mangueira (erro normalizado + altura fixa soh para referencia)
         self.posicao_mang_pub = self.create_publisher(Point, '/posicao_mangueira', 10)
