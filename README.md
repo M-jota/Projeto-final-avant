@@ -7,6 +7,7 @@ Elaborar algoritmos ROS para o drone:
 * Detectar e seguir a linha azul presente no ambiente simulado até chegar à mangueira vermelha, 
 * Identificar o centro da mangueira e alinhar o centro do drone com o centro detectado, 
 * Quando o alinhamento for alcançado, o sistema deve publicar uma mensagem em um tópico ROS indicando que a centralização foi concluída com sucesso.
+  
 Além disso, fazer:
 * Um segundo nó ROS que executa o comando para liberar o relé, acionando a soltura do gancho.
 
