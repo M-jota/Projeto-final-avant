@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Bool
+import time
+
+try:
+    import RPi.GPIO as GPIO
+    GPIO.setmode(GPIO.BCM)
+    RELAY_PIN = 7  # pino GPIO conectado ao rele na imagem do notion
+    GPIO.setup(RELAY_PIN, GPIO.OUT)
+except ImportError:
+    GPIO = None
+    print("RPi.GPIO nao encontrado. simulacao sem hardware.")
+
+class ControleGancho(Node):
+    def __init__(self):
+        super().__init__('node_gancho_desafio')
+
+        # SUBSCRIBER do topico da visao que indica quando o drone esta centralizado com a mangueira
+        self.subscription = self.create_subscription(Bool,'/centralizada_mangueira', self.centralizacao_callback, 10)
+        self.rele_acionado = False
+        self.get_logger().info("nó do gancho iniciado.")
+
+    def centralizacao_callback(self, msg):
+        # se drone esta centralizado e o rele ainda nao foi acionado
+        if msg.data and not self.rele_acionado:
+            self.get_logger().info("drone centralizado! acionando gancho")
+            self.acionar_rele()
+        elif not msg.data and self.rele_acionado:
+            self.get_logger().info("drone saiu da centralizacao. gancho ja acionado.")
+
+    def acionar_rele(self):
+        if GPIO:
+            GPIO.output(RELAY_PIN, GPIO.HIGH)  # ativa o rele
+            time.sleep(0.5)  # tempo de acionamento do rele
+            GPIO.output(RELAY_PIN, GPIO.LOW)   # desativa o rele
+        else:
+            print("simulacao: rele foi acionado!")
+        self.rele_acionado = True
+        self.get_logger().info("gancho liberado!")
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ControleGancho()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if GPIO:
+            GPIO.cleanup()
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
