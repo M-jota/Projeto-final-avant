@@ -8,7 +8,7 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 
-class DetectorMangueira(Node):
+class DetectorMangueiraELinha(Node):
     def __init__(self):
         super().__init__('node_visao_desafio')
         self.bridge = CvBridge()
@@ -19,11 +19,17 @@ class DetectorMangueira(Node):
         # PUBLISHER para posicao da mangueira (erro normalizado + altura fixa soh para referencia)
         self.posicao_mang_pub = self.create_publisher(Point, '/posicao_mangueira', 10)
         
-        # PUBLISHER para mostrar se estah detectando ou nao a mangueira
+        # PUBLISHER para indicar se estah detectando ou nao a mangueira
         self.deteccao_mang_pub = self.create_publisher(Bool, '/deteccao_mangueira', 10)
 
         # PUBLISHER para mostrar a centralizacao
         self.centralizado_mang_pub = self.create_publisher(Bool, '/centralizada_mangueira', 10)
+
+        # PUBLISHER que envia o erro de alinhamento em relação a linha azul
+        self.erro_linha_pub = self.create_publisher(Point, '/erro_linha_azul', 10)
+        
+        # PUBLISHER para indicar se estah detectando ou nao a linha azul no frame atual
+        self.linha_detectada_pub = self.create_publisher(Bool, '/deteccao_linha_azul', 10)
 
         self.fixed_z = 2.0  # altura fixa do drone soh para referencia
 
@@ -36,6 +42,10 @@ class DetectorMangueira(Node):
         # converte o frame para hsv
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
+
+
+        #----mangueira-------
+
         # mascara para vermelho (duas faixas)
         lower_red1 = np.array([0, 120, 70])
         upper_red1 = np.array([10, 255, 255])
@@ -44,7 +54,7 @@ class DetectorMangueira(Node):
 
         mascara1 = cv2.inRange(hsv, lower_red1, upper_red1)
         mascara2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        mascara = cv2.bitwise_or(mascara1, mascara2)
+        mascara = cv2.bitwise_or(mascara1, mascara2) 
         #mascara = mascara1 + mascara2
 
         # calcula o centro da mascara
@@ -85,13 +95,53 @@ class DetectorMangueira(Node):
         self.deteccao_mang_pub.publish(detectado)
         self.centralizado_mang_pub.publish(centralizado)
 
+
+
+        #------linha azul------
+        # mascara para detectar azul
+        lower_blue = np.array([90, 80, 50])
+        upper_blue = np.array([130, 255, 255])
+        mascara_azul = cv2.inRange(hsv, lower_blue, upper_blue)
+
+        # pega regiao inferior da imagem (ROI - regiao de interesse)
+        # roi eh usado para focar apenas nas partes que importam
+        # nesse caso, como a linha estah no chao, foi selecionada parte inferior
+        roi = mascara_azul[int(altura*0.6):altura, :]
+
+        M_azul = cv2.moments(roi) # pega os momentos dentro da selecao da roi
+        erro_linha = Point()
+        linha_detectada = Bool()
+
+        if M_azul["m00"] > 5000:   # limite maior porque linha eh larga, segundo enunciado: 25cm
+            cx_azul = int(M_azul["m10"] / M_azul["m00"])
+
+            # erro normalizado
+            erro_norm = (cx_azul - largura / 2) / (largura / 2)
+
+            erro_linha.x = float(erro_norm)
+            erro_linha.y = 0.0
+            erro_linha.z = 0.0
+            linha_detectada.data = True
+        
+        else:
+            # nao identifica a linha
+            erro_linha.x = float('nan')
+            erro_linha.y = float('nan')
+            erro_linha.z = float('nan')
+            linha_detectada.data = False
+
+        # publica
+        self.erro_linha_pub.publish(erro_linha)
+        self.linha_detectada_pub.publish(linha_detectada)
+
+
         # mostra imagem
-        cv2.imshow("deteccao da mangueira vermelha", frame)
+        cv2.imshow("camera drone", frame)
         cv2.waitKey(1)
 
 def main(args=None):
     rclpy.init(args=args)
-    node = DetectorMangueira()
+    node = DetectorMangueiraELinha()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
